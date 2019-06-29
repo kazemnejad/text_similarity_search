@@ -221,7 +221,6 @@ class MinHashSimilaritySearch(SimilaritySearch):
         return np.array(self._do_search(*query))
 
     def create_pair_dataset(self) -> np.ndarray:
-        # seed = [':'.join(s.split(':')[1:]) for s in self.source_data_lemma]
         seed = self.source_data_lemma
         minhash_funcs.generate_adjlist(
             seed,
