@@ -1,0 +1,4 @@
+working_tmp
+*.npy
+*.txt
+*.txt_lemma
