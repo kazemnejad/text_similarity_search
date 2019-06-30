@@ -7,8 +7,8 @@ import numpy as np
 import faiss
 from tqdm import tqdm
 
-from . import minhash_funcs
-from . import utils
+import minhash_funcs
+import utils
 
 
 class SimilaritySearch:
@@ -283,7 +283,7 @@ def test_minhash_similarity_search():
     mss = MinHashSimilaritySearch(source_data, source_data_lemma,
                                   num_candidate_neighbors=20, num_actual_neighbors=10,
                                   num_threads=4, remove_self_result=True,
-                                  select_mode='best', jaccard_threshold=0.5)
+                                  select_mode='best', jaccard_threshold=0.4)
 
     pairs = mss.create_pair_dataset()
     pairs_str = [(source_data[i], source_data[j]) for i, j in pairs]
@@ -312,6 +312,6 @@ def test_minhash_similarity_search_query():
 
 
 if __name__ == '__main__':
-    test_vector_similarity_search()
-    # test_minhash_similarity_search()
+    # test_vector_similarity_search()
+    test_minhash_similarity_search()
     # test_minhash_similarity_search_query()

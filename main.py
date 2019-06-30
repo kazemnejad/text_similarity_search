@@ -1,5 +1,5 @@
 import fire
-from . import search
+import search
 
 all_methods = [search.VectorSimilaritySearch, search.MinHashSimilaritySearch]
 
