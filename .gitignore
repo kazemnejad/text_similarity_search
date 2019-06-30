@@ -1,3 +1,4 @@
+*.idea
 working_tmp
 *.npy
 *.txt

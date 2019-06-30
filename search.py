@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
-import faiss
 from tqdm import tqdm
 
 import minhash_funcs
@@ -54,6 +53,8 @@ class VectorSimilaritySearch(SimilaritySearch):
         self._init()
 
     def _init(self):
+        import faiss
+
         self.dim = self.source_data.shape[-1]
 
         if self.use_gpu:
