@@ -1,24 +1,19 @@
-import csv
 import glob
-import os
-
-from datasketch import MinHash, MinHashLSH, LeanMinHash
-from multiprocessing import Pool
-from itertools import repeat
-
-# noinspection PyPep8Naming
-import pickle
 # import spacy
 import io
-import regex as re
-from tqdm import tqdm
-import mmap
-import json
-import sys
+import os
+# noinspection PyPep8Naming
+import pickle
 from collections import defaultdict
 from hashlib import md5
-import numpy as np
+from itertools import repeat
+from multiprocessing import Pool
 from random import shuffle
+
+import numpy as np
+import regex as re
+from datasketch import MinHash, MinHashLSH, LeanMinHash
+from tqdm import tqdm
 
 # from spacy import en, language_data
 
@@ -355,7 +350,6 @@ def generate_next_set_partial(args):
 
 def generate_next_set_parallel(queue_tmp, batch_neighbors, already_seen_set, adj_file, nproc, adjlist_prefix):
     batch_size = len(queue_tmp) // nproc
-    import copy
 
     alss = already_seen_set
     next_seed_sent = []

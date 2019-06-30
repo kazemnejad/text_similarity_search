@@ -7,8 +7,8 @@ import numpy as np
 import faiss
 from tqdm import tqdm
 
-import minhash_funcs
-import utils
+from . import minhash_funcs
+from . import utils
 
 
 class SimilaritySearch:
