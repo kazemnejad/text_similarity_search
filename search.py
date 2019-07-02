@@ -1,6 +1,8 @@
 import glob
 import os
 import shutil
+from itertools import repeat
+from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Sequence
 
@@ -193,23 +195,34 @@ class MinHashSimilaritySearch(SimilaritySearch):
             for k, v in result.items():
                 result[k] = [int(minhash_funcs.find_sent_id(d)) for d in v]
 
-            for i, q_str in enumerate(tqdm(batch_query)):
-                q_words = set(q_str.split())
+            result_lst = [result[i] for i in sorted(list(result.keys()))]
 
-                candidates = result[i]
-                jaccard_scores = [
-                    (
-                        c_id,
-                        minhash_funcs.jaccard(q_words, set(self.sentence_mapping[c_id].split()))
-                    ) for c_id in candidates]
-                jaccard_scores = list(filter(lambda x: x[1] > self.jaccard_threshold, jaccard_scores))
-                jaccard_scores.sort(key=lambda x: x[1], reverse=True)
+            assert len(result_lst) == len(batch_query)
 
-                candidates = np.array([c_id for c_id, _ in jaccard_scores])
-                neighbors = self._select_from_candidates(q_str, candidates)
+            pool = Pool(processes=self.num_threads)
+            for neighbors in tqdm(pool.map(
+                    MinHashSimilaritySearch.unwrap_self__process_search_result_batch,
+                    zip(repeat(self), result_lst, batch_query)
+            )):
                 final_result.append(neighbors)
 
         return list(final_result)
+
+    def _process_search_result_batch(self, candidates, q_str):
+        q_words = set(q_str.split())
+
+        jaccard_scores = [
+            (
+                c_id,
+                minhash_funcs.jaccard(q_words, set(self.sentence_mapping[c_id].split()))
+            ) for c_id in candidates]
+        jaccard_scores = list(filter(lambda x: x[1] > self.jaccard_threshold, jaccard_scores))
+        jaccard_scores.sort(key=lambda x: x[1], reverse=True)
+
+        candidates = np.array([c_id for c_id, _ in jaccard_scores])
+        neighbors = self._select_from_candidates(q_str, candidates)
+
+        return neighbors
 
     def _select_from_candidates(self, q_str, candidates) -> np.ndarray:
         if self.remove_self_result:
@@ -272,6 +285,10 @@ class MinHashSimilaritySearch(SimilaritySearch):
 
         return query_lemma, query
 
+    @staticmethod
+    def unwrap_self__process_search_result_batch(arg, **kwarg):
+        return MinHashSimilaritySearch._process_search_result_batch(*arg, **kwarg)
+
 
 def test_vector_similarity_search():
     d = 8  # dimension
@@ -322,21 +339,12 @@ def test_minhash_similarity_search_query():
                                   num_threads=4, remove_self_result=True, batch_size=4,
                                   select_mode='best', jaccard_threshold=0.2, create_new_minhash=False)
 
-    # mss.batch_size = 4
+    mss.batch_size = 4
     batch_result = mss.search((query_lemma, query))
 
     # pairs_str = [(source_data[i], source_data[j]) for i, j in pairs]
 
-    from pprint import pprint
-    # pprint(batch_result)
-    print("s")
-    print("s")
-    print("s")
-    print("s")
-    print("s")
-    print("s")
-
-    a = 3
+    assert np.all(utils.flatten_result(batch_result) == utils.flatten_result(non_batch_result))
 
     # np.save('tmp22.npy', results)
 
