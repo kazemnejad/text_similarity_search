@@ -205,6 +205,7 @@ class MinHashSimilaritySearch(SimilaritySearch):
                     zip(repeat(self), result_lst, batch_query)
             )):
                 final_result.append(neighbors)
+            pool.terminate()
 
         return list(final_result)
 
