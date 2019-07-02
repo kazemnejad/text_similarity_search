@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 import minhash_funcs
 import utils
+from collections import deque
 
 
 class SimilaritySearch:
@@ -175,7 +176,7 @@ class MinHashSimilaritySearch(SimilaritySearch):
         return lsh_filenames
 
     def _do_search(self, query_lemma, query):
-        final_result = []
+        final_result = deque()
         for batch_query_lemma, batch_query in zip(utils.chunks(query_lemma, self.batch_size),
                                                   utils.chunks(query, self.batch_size)):
             query_lemma_toks = [q.split(' ') for q in batch_query_lemma]
@@ -192,7 +193,7 @@ class MinHashSimilaritySearch(SimilaritySearch):
             for k, v in result.items():
                 result[k] = [int(minhash_funcs.find_sent_id(d)) for d in v]
 
-            for i, q_str in enumerate(batch_query):
+            for i, q_str in enumerate(tqdm(batch_query)):
                 q_words = set(q_str.split())
 
                 candidates = result[i]
@@ -208,7 +209,7 @@ class MinHashSimilaritySearch(SimilaritySearch):
                 neighbors = self._select_from_candidates(q_str, candidates)
                 final_result.append(neighbors)
 
-        return final_result
+        return list(final_result)
 
     def _select_from_candidates(self, q_str, candidates) -> np.ndarray:
         if self.remove_self_result:
