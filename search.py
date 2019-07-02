@@ -1,4 +1,5 @@
 import glob
+import os
 import shutil
 from pathlib import Path
 from typing import Sequence
@@ -121,7 +122,8 @@ class VectorSimilaritySearch(SimilaritySearch):
 
 class MinHashSimilaritySearch(SimilaritySearch):
     def __init__(self, source_data, source_data_lemma, num_candidate_neighbors=20, num_actual_neighbors=10,
-                 num_threads=4, remove_self_result=False, select_mode='best', jaccard_threshold=0.5, **kwargs):
+                 num_threads=4, batch_size=200000, remove_self_result=False, select_mode='best', jaccard_threshold=0.5,
+                 create_new_minhash=True, **kwargs):
         super().__init__(source_data_lemma)
 
         self.source_data_lemma = source_data_lemma
@@ -132,15 +134,13 @@ class MinHashSimilaritySearch(SimilaritySearch):
         self.num_actual_neighbors = num_actual_neighbors
         self.remove_self_result = remove_self_result
         self.select_mode = select_mode
+        self.batch_size = batch_size
+        self.create_new_minhash = create_new_minhash
 
         self._init()
 
     def _init(self):
         self.tmp_dir = Path('working_tmp')
-        if self.tmp_dir.exists():
-            shutil.rmtree(str(self.tmp_dir))
-
-        self.tmp_dir.mkdir(parents=True, exist_ok=True)
 
         lemma_with_ids = []
         for i, doc in enumerate(self.source_data_lemma):
@@ -152,7 +152,14 @@ class MinHashSimilaritySearch(SimilaritySearch):
 
         print("Num instances: %s" % len(self.source_data_lemma))
 
-        self.lsh_filenames = self._make_lsh(str(self.tmp_dir / 'lsh_lem'))
+        if self.create_new_minhash:
+            if self.tmp_dir.exists():
+                shutil.rmtree(str(self.tmp_dir))
+            self.tmp_dir.mkdir(parents=True, exist_ok=True)
+            self.lsh_filenames = self._make_lsh(str(self.tmp_dir / 'lsh_lem'))
+        else:
+            self.lsh_filenames = [str(self.tmp_dir / fname) for fname in os.listdir(str(self.tmp_dir)) if
+                                  fname.startswith('lsh_lem_')]
 
     def _make_lsh(self, filepath: str = 'lsh') -> Sequence[str]:
         data_lemma_path = str(self.tmp_dir / 'data_lemma.txt')
@@ -168,36 +175,38 @@ class MinHashSimilaritySearch(SimilaritySearch):
         return lsh_filenames
 
     def _do_search(self, query_lemma, query):
-        query_lemma_toks = [q.split(' ') for q in query_lemma]
-        query_keys = list(range(len(query)))
-
-        result = minhash_funcs.lsh_query_parallel(
-            self.lsh_filenames,
-            query_lemma_toks,
-            query_keys,
-            nproc=self.num_threads,
-            jac_tr=self.jaccard_threshold
-        )
-
-        for k, v in result.items():
-            result[k] = [int(minhash_funcs.find_sent_id(d)) for d in v]
-
         final_result = []
-        for i, q_str in enumerate(query):
-            q_words = set(q_str.split())
+        for batch_query_lemma, batch_query in zip(utils.chunks(query_lemma, self.batch_size),
+                                                  utils.chunks(query, self.batch_size)):
+            query_lemma_toks = [q.split(' ') for q in batch_query_lemma]
+            query_keys = list(range(len(batch_query)))
 
-            candidates = result[i]
-            jaccard_scores = [
-                (
-                    c_id,
-                    minhash_funcs.jaccard(q_words, set(self.sentence_mapping[c_id].split()))
-                ) for c_id in candidates]
-            jaccard_scores = list(filter(lambda x: x[1] > self.jaccard_threshold, jaccard_scores))
-            jaccard_scores.sort(key=lambda x: x[1], reverse=True)
+            result = minhash_funcs.lsh_query_parallel(
+                self.lsh_filenames,
+                query_lemma_toks,
+                query_keys,
+                nproc=self.num_threads,
+                jac_tr=self.jaccard_threshold
+            )
 
-            candidates = np.array([c_id for c_id, _ in jaccard_scores])
-            neighbors = self._select_from_candidates(q_str, candidates)
-            final_result.append(neighbors)
+            for k, v in result.items():
+                result[k] = [int(minhash_funcs.find_sent_id(d)) for d in v]
+
+            for i, q_str in enumerate(batch_query):
+                q_words = set(q_str.split())
+
+                candidates = result[i]
+                jaccard_scores = [
+                    (
+                        c_id,
+                        minhash_funcs.jaccard(q_words, set(self.sentence_mapping[c_id].split()))
+                    ) for c_id in candidates]
+                jaccard_scores = list(filter(lambda x: x[1] > self.jaccard_threshold, jaccard_scores))
+                jaccard_scores.sort(key=lambda x: x[1], reverse=True)
+
+                candidates = np.array([c_id for c_id, _ in jaccard_scores])
+                neighbors = self._select_from_candidates(q_str, candidates)
+                final_result.append(neighbors)
 
         return final_result
 
@@ -297,22 +306,41 @@ def test_minhash_similarity_search_query():
     source_data = utils.read_list('source_data.txt')
     source_data_lemma = utils.read_list('source_data.txt_lemma')
 
-    query = source_data[:10]
-    query_lemma = source_data_lemma[:10]
+    query = source_data[:20]
+    query_lemma = source_data_lemma[:20]
 
     mss = MinHashSimilaritySearch(source_data, source_data_lemma,
                                   num_candidate_neighbors=20, num_actual_neighbors=10,
-                                  num_threads=4, remove_self_result=True,
+                                  num_threads=4, remove_self_result=True, batch_size=20,
                                   select_mode='best', jaccard_threshold=0.2)
 
-    results = mss.search((query_lemma, query))
+    non_batch_result = mss.search((query_lemma, query))
+
+    mss = MinHashSimilaritySearch(source_data, source_data_lemma,
+                                  num_candidate_neighbors=20, num_actual_neighbors=10,
+                                  num_threads=4, remove_self_result=True, batch_size=4,
+                                  select_mode='best', jaccard_threshold=0.2, create_new_minhash=False)
+
+    # mss.batch_size = 4
+    batch_result = mss.search((query_lemma, query))
+
     # pairs_str = [(source_data[i], source_data[j]) for i, j in pairs]
 
     from pprint import pprint
-    pprint(results)
+    # pprint(batch_result)
+    print("s")
+    print("s")
+    print("s")
+    print("s")
+    print("s")
+    print("s")
+
+    a = 3
+
+    # np.save('tmp22.npy', results)
 
 
 if __name__ == '__main__':
     # test_vector_similarity_search()
-    test_minhash_similarity_search()
-    # test_minhash_similarity_search_query()
+    # test_minhash_similarity_search()
+    test_minhash_similarity_search_query()
