@@ -1,2 +1,5 @@
-from search import VectorSimilaritySearch
-from search import MinHashSimilaritySearch
+# from search import VectorSimilaritySearch
+# from . import search
+#
+# VectorSimilaritySearch = search.VectorSimilaritySearch
+# MinHashSimilaritySearch = search.MinHashSimilaritySearch

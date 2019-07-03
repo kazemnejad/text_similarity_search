@@ -1,6 +1,6 @@
-import glob
 import os
 import shutil
+from collections import deque
 from itertools import repeat
 from multiprocessing.pool import Pool
 from pathlib import Path
@@ -9,9 +9,7 @@ from typing import Sequence
 import numpy as np
 from tqdm import tqdm
 
-import minhash_funcs
-import utils
-from collections import deque
+from . import minhash_funcs, utils
 
 
 class SimilaritySearch:

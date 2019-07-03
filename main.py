@@ -1,7 +1,8 @@
 import fire
-import search
 
-all_methods = [search.VectorSimilaritySearch, search.MinHashSimilaritySearch]
+from tts.search import VectorSimilaritySearch, MinHashSimilaritySearch
+
+all_methods = [VectorSimilaritySearch, MinHashSimilaritySearch]
 
 
 def find_method_class(method_name):
