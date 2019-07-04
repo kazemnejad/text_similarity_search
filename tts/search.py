@@ -198,7 +198,7 @@ class MinHashSimilaritySearch(SimilaritySearch):
             assert len(result_lst) == len(batch_query)
 
             final_result.extend(map(
-                self._process_search_result_batch,
+                lambda *x: self._process_search_result_batch(*x),
                 tqdm(zip(result_lst, batch_query), total=len(result_lst))
             ))
 

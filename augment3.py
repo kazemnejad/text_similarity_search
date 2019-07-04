@@ -1,72 +1,11 @@
-import os
 import pickle
-from collections import OrderedDict, deque, defaultdict
+from collections import deque, defaultdict
 from typing import Sequence, Tuple, List
 
 import numpy as np
 
 from tts.search import MinHashSimilaritySearch
 from tts.utils import flatten_result
-
-
-class EmbeddingLoader:
-    def __init__(self, embedding_dir, embed_dim=512):
-        self.embedding_dir = embedding_dir
-        self.embedding_splits = [(name, self.parse_embed_name(name)) for name in self.embedding_dir]
-        self.embedding_splits.sort(key=lambda x: x[1][0])
-        self.embed_dim = embed_dim
-
-    def get_bucket(self, doc_id):
-        for i, (name, (s, e)) in enumerate(self.embedding_splits):
-            if s <= doc_id <= e:
-                return i
-
-    def load(self, queries):
-        query_ids = [(self.get_bucket(idx), i) for i, idx in enumerate(queries)]
-
-        split_to_ids = OrderedDict()
-        for split_id, q_id in query_ids:
-            split_to_ids.setdefault(split_id, []).append(q_id)
-
-        all_embeds = np.zeros(shape=(len(queries), self.embed_dim), dtype=np.float32)
-        last_index = 0
-
-        buckets = sorted(list(split_to_ids.keys()))
-        embed_ids_to_query_ids = deque()
-        for b_id in buckets:
-            q_ids = buckets[b_id]
-
-            split_name, (s, e) = self.embedding_splits[b_id]
-            emb_split = np.load(os.path.join(self.embedding_dir, split_name))
-
-            for q_id in zip(q_ids):
-                embed_ids_to_query_ids.append(q_id)
-                query = queries[q_id]
-
-                local_query = query - s
-
-                all_embeds[last_index, :] = emb_split[local_query]
-                last_index += 1
-
-        embed_ids_to_query_ids = [(q_id, embed_id) for embed_id, q_id in enumerate(embed_ids_to_query_ids)]
-        embed_ids_to_query_ids.sort(key=lambda x: x[0])
-
-        assert np.all(np.equal(
-            np.array(list(map(lambda x: x[0], embed_ids_to_query_ids))),
-            np.array(list(map(lambda x: x[1], query_ids)))
-        ))
-
-        embed_ids = [embed_id for q_id, embed_id in embed_ids_to_query_ids]
-
-        all_embeds = all_embeds[embed_ids, :]
-
-        return all_embeds
-
-    @staticmethod
-    def parse_embed_name(name):
-        splts = name.split('.npy')[0].split('_')
-        return int(splts[1]), int(splts[3])
-
 
 docs = []
 docs_ner = []
@@ -164,8 +103,6 @@ def flatten(xy_to_pqs: Sequence[Tuple[int, Sequence[Tuple[int, int]]]]) -> Seque
 
 def augment(episode_path: str, pairs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     episodes = pickle.load(open(episode_path, 'rb'))
-    embedding_loader = EmbeddingLoader('emb')
-
     plan_len = 1 + NUM_PQS * 2
 
     all_plans = deque()
