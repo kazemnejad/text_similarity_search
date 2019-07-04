@@ -74,7 +74,7 @@ class VectorSimilaritySearch(SimilaritySearch):
 
         self.index.add(self.source_data)
 
-    def _do_search(self, query):
+    def _do_search(self, query) -> Sequence[np.ndarray]:
         result = []
         for batch_index, batch_query in tqdm(enumerate(utils.chunks(query, self.batch_size)),
                                              total=len(query) // self.batch_size):
@@ -197,13 +197,10 @@ class MinHashSimilaritySearch(SimilaritySearch):
 
             assert len(result_lst) == len(batch_query)
 
-            pool = Pool(processes=self.num_threads)
-            for neighbors in tqdm(pool.map(
-                    MinHashSimilaritySearch.unwrap_self__process_search_result_batch,
-                    zip(repeat(self), result_lst, batch_query)
-            )):
-                final_result.append(neighbors)
-            pool.terminate()
+            final_result.extend(map(
+                self._process_search_result_batch,
+                tqdm(zip(result_lst, batch_query), total=len(result_lst))
+            ))
 
         return list(final_result)
 
